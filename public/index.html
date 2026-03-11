@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Safe Muster — AI Stampede Detection System</title>
+    <meta name="description"
+        content="Real-time AI-powered crowd safety platform using computer vision, pose estimation, and instant emergency alerts to prevent stampedes." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+        rel="stylesheet" />
+    <style>
+        :root {
+            --bg: #050813;
+            --card: rgba(255, 255, 255, 0.04);
+            --border: rgba(255, 255, 255, 0.08);
+            --red: #ef4444;
+            --amber: #f59e0b;
+            --green: #22c55e;
+            --blue: #3b82f6;
+            --purple: #8b5cf6;
+            --text: #f1f5f9;
+            --muted: #94a3b8;
+            --dim: #64748b;
+        }
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0
+        }
+
+        html {
+            scroll-behavior: smooth
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            overflow-x: hidden
+        }
+
+        /* ----- GRID BG ----- */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image: linear-gradient(rgba(139, 92, 246, .04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(139, 92, 246, .04) 1px, transparent 1px);
+            background-size: 50px 50px;
+            pointer-events: none;
+            z-index: 0
+        }
+
+        /* ----- GLOW BLOBS ----- */
+        .blob {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(120px);
+            pointer-events: none;
+            opacity: .35;
+            z-index: 0
+        }
+
+        .blob-1 {
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, #7c3aed, transparent 70%);
+            top: -200px;
+            left: -150px
+        }
+
+        .blob-2 {
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, #1d4ed8, transparent 70%);
+            bottom: -150px;
+            right: -100px
+        }
+
+        /* ----- NAV ----- */
+        nav {
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 clamp(1rem, 5vw, 4rem);
+            height: 68px;
+            background: rgba(5, 8, 19, .8);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border)
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: .75rem
+        }
+
+        .nav-logo {
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #ef4444, #8b5cf6);
+            display: grid;
+            place-items: center;
+            font-size: 1.1rem;
+            flex-shrink: 0
+        }
+
+        .nav-brand h1 {
+            font-size: 1.2rem;
+            font-weight: 800;
+            letter-spacing: -.03em
+        }
+
+        .nav-brand span {
+            color: var(--purple)
+        }
+
+        .nav-cta {
+            padding: .55rem 1.3rem;
+            border-radius: 8px;
+            font-size: .82rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            color: #fff;
+            text-decoration: none;
+            transition: opacity .2s, transform .2s;
+            border: none;
+            cursor: pointer
+        }
+
+        .nav-cta:hover {
+            opacity: .85;
+            transform: translateY(-1px)
+        }
+
+        /* ----- HERO ----- */
+        .hero {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            padding: clamp(5rem, 12vw, 9rem) clamp(1rem, 5vw, 4rem) 5rem
+        }
+
+        .hero-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: .5rem;
+            background: rgba(139, 92, 246, .12);
+            border: 1px solid rgba(139, 92, 246, .3);
+            border-radius: 20px;
+            padding: .35rem 1rem;
+            font-size: .75rem;
+            font-weight: 700;
+            color: var(--purple);
+            letter-spacing: .06em;
+            margin-bottom: 2rem;
+            text-transform: uppercase
+        }
+
+        .hero-pill span {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--purple);
+            animation: blink 1.4s infinite
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: .3
+            }
+        }
+
+        .hero h2 {
+            font-size: clamp(2.5rem, 6vw, 4.8rem);
+            font-weight: 900;
+            line-height: 1.08;
+            letter-spacing: -.04em;
+            max-width: 900px;
+            margin: 0 auto 1.5rem
+        }
+
+        .hero h2 .grad {
+            background: linear-gradient(135deg, #ef4444 0%, #8b5cf6 50%, #3b82f6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text
+        }
+
+        .hero p {
+            font-size: 1.1rem;
+            color: var(--muted);
+            max-width: 640px;
+            margin: 0 auto 2.5rem;
+            line-height: 1.7
+        }
+
+        .hero-btns {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap
+        }
+
+        .btn-main {
+            padding: .8rem 2rem;
+            border-radius: 10px;
+            font-size: .9rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #ef4444, #8b5cf6);
+            color: #fff;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            transition: all .2s
+        }
+
+        .btn-main:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(139, 92, 246, .35)
+        }
+
+        .btn-outline {
+            padding: .8rem 2rem;
+            border-radius: 10px;
+            font-size: .9rem;
+            font-weight: 700;
+            background: rgba(255, 255, 255, .04);
+            color: var(--text);
+            border: 1px solid var(--border);
+            text-decoration: none;
+            cursor: pointer;
+            transition: all .2s
+        }
+
+        .btn-outline:hover {
+            background: rgba(255, 255, 255, .08);
+            transform: translateY(-2px)
+        }
+
+        /* ----- STATS BAR ----- */
+        .stats-bar {
+            position: relative;
+            z-index: 1;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 1px;
+            background: var(--border);
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border)
+        }
+
+        .stat-item {
+            background: var(--bg);
+            padding: 1.5rem 2rem;
+            text-align: center
+        }
+
+        .stat-item .num {
+            font-size: 2rem;
+            font-weight: 800;
+            letter-spacing: -.04em;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text
+        }
+
+        .stat-item .lbl {
+            font-size: .75rem;
+            color: var(--dim);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+            margin-top: .25rem
+        }
+
+        /* ----- FEATURES ----- */
+        .section {
+            padding: 5rem clamp(1rem, 5vw, 4rem);
+            position: relative;
+            z-index: 1
+        }
+
+        .section-tag {
+            font-size: .75rem;
+            font-weight: 700;
+            color: var(--purple);
+            text-transform: uppercase;
+            letter-spacing: .1em;
+            text-align: center;
+            margin-bottom: .75rem
+        }
+
+        .section-title {
+            font-size: clamp(1.8rem, 4vw, 3rem);
+            font-weight: 800;
+            letter-spacing: -.03em;
+            text-align: center;
+            margin-bottom: .75rem
+        }
+
+        .section-sub {
+            text-align: center;
+            color: var(--muted);
+            max-width: 560px;
+            margin: 0 auto 3rem;
+            font-size: .95rem;
+            line-height: 1.6
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.25rem
+        }
+
+        .feature-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.75rem;
+            transition: border-color .25s, transform .25s;
+            cursor: default
+        }
+
+        .feature-card:hover {
+            border-color: rgba(139, 92, 246, .4);
+            transform: translateY(-3px)
+        }
+
+        .feature-icon {
+            font-size: 2rem;
+            margin-bottom: 1rem
+        }
+
+        .feature-card h3 {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: .5rem
+        }
+
+        .feature-card p {
+            font-size: .83rem;
+            color: var(--muted);
+            line-height: 1.65
+        }
+
+        /* ----- PIPELINE ----- */
+        .pipeline {
+            display: flex;
+            gap: 0;
+            overflow-x: auto;
+            padding-bottom: 1rem
+        }
+
+        .pipeline::-webkit-scrollbar {
+            height: 4px
+        }
+
+        .pipeline::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, .1);
+            border-radius: 10px
+        }
+
+        .pipe-step {
+            flex: 1;
+            min-width: 160px;
+            padding: 1.5rem 1.25rem;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            margin-right: .75rem;
+
+            last-child {
+                margin-right: 0
+            }
+
+            ;
+            background:var(--card);
+            position:relative;
+            transition:border-color .2s
+        }
+
+        .pipe-step:hover {
+            border-color: rgba(59, 130, 246, .4)
+        }
+
+        .pipe-num {
+            position: absolute;
+            top: -12px;
+            left: 16px;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            border-radius: 20px;
+            padding: .15rem .6rem;
+            font-size: .7rem;
+            font-weight: 700
+        }
+
+        .pipe-icon {
+            font-size: 1.5rem;
+            margin: 0.5rem 0 .5rem
+        }
+
+        .pipe-step h4 {
+            font-size: .85rem;
+            font-weight: 700;
+            margin-bottom: .3rem
+        }
+
+        .pipe-step p {
+            font-size: .75rem;
+            color: var(--muted);
+            line-height: 1.5
+        }
+
+        /* ----- ALERT SECTION ----- */
+        .alert-section {
+            background: linear-gradient(135deg, rgba(239, 68, 68, .08), rgba(139, 92, 246, .08));
+            border: 1px solid rgba(239, 68, 68, .2);
+            border-radius: 20px;
+            padding: 3rem 2.5rem;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            align-items: center
+        }
+
+        @media(max-width:640px) {
+            .alert-section {
+                grid-template-columns: 1fr
+            }
+        }
+
+        .alert-section h3 {
+            font-size: 1.7rem;
+            font-weight: 800;
+            letter-spacing: -.03em;
+            margin-bottom: .75rem
+        }
+
+        .alert-section p {
+            color: var(--muted);
+            font-size: .9rem;
+            line-height: 1.7
+        }
+
+        .alert-list {
+            display: flex;
+            flex-direction: column;
+            gap: .75rem
+        }
+
+        .alert-row {
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+            background: rgba(255, 255, 255, .03);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: .75rem 1rem;
+            font-size: .83rem
+        }
+
+        /* ----- CTA ----- */
+        .cta-section {
+            text-align: center;
+            padding: 5rem clamp(1rem, 5vw, 4rem);
+            position: relative;
+            z-index: 1
+        }
+
+        .cta-box {
+            background: linear-gradient(135deg, rgba(59, 130, 246, .08), rgba(139, 92, 246, .08));
+            border: 1px solid rgba(139, 92, 246, .2);
+            border-radius: 24px;
+            padding: 4rem 2rem;
+            max-width: 700px;
+            margin: 0 auto
+        }
+
+        .cta-box h2 {
+            font-size: clamp(1.8rem, 4vw, 2.8rem);
+            font-weight: 800;
+            letter-spacing: -.03em;
+            margin-bottom: 1rem
+        }
+
+        .cta-box p {
+            color: var(--muted);
+            margin-bottom: 2rem;
+            font-size: .95rem;
+            line-height: 1.6
+        }
+
+        /* ----- FOOTER ----- */
+        footer {
+            border-top: 1px solid var(--border);
+            padding: 1.5rem clamp(1rem, 5vw, 4rem);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: .78rem;
+            color: var(--dim);
+            flex-wrap: wrap;
+            gap: 1rem;
+            position: relative;
+            z-index: 1
+        }
+
+        footer a {
+            color: var(--dim);
+            text-decoration: none
+        }
+
+        footer a:hover {
+            color: var(--text)
+        }
+    </style>
+</head>
+
+<body>
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+
+    <!-- NAV -->
+    <nav>
+        <div class="nav-brand">
+            <div class="nav-logo">🛡️</div>
+            <h1>Safe<span>Muster</span></h1>
+        </div>
+        <a class="nav-cta" href="https://safe-muster.onrender.com" target="_blank" rel="noopener">Launch Dashboard →</a>
+    </nav>
+
+    <!-- HERO -->
+    <section class="hero">
+        <div class="hero-pill"><span></span> AI · Real-Time · Emergency Alerts</div>
+        <h2>Prevent Stampedes<br>with <span class="grad">AI Vision</span></h2>
+        <p>Safe Muster uses computer vision, pose estimation, and crowd density analysis to detect stampede risk in real
+            time — triggering instant SMS and voice alerts to stop disasters before they happen.</p>
+        <div class="hero-btns">
+            <a class="btn-main" href="https://safe-muster.onrender.com" target="_blank" rel="noopener">🚀 Open Live
+                Dashboard</a>
+            <a class="btn-outline" href="https://github.com/raj-moorthy/AI-driven-Stampede-Detection_and_AlertSystem"
+                target="_blank" rel="noopener">⭐ View on GitHub</a>
+        </div>
+    </section>
+
+    <!-- STATS -->
+    <div class="stats-bar">
+        <div class="stat-item">
+            <div class="num">30fps</div>
+            <div class="lbl">Real-Time Processing</div>
+        </div>
+        <div class="stat-item">
+            <div class="num">6</div>
+            <div class="lbl">AI Pipeline Stages</div>
+        </div>
+        <div class="stat-item">
+            <div class="num">&lt;2s</div>
+            <div class="lbl">Alert Response Time</div>
+        </div>
+        <div class="stat-item">
+            <div class="num">YOLOv8</div>
+            <div class="lbl">Detection Model</div>
+        </div>
+    </div>
+
+    <!-- FEATURES -->
+    <section class="section">
+        <div class="section-tag">Core Capabilities</div>
+        <h2 class="section-title">AI that watches so you don't have to</h2>
+        <p class="section-sub">A full pipeline from pixel to alert — no human monitoring required.</p>
+
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">🔭</div>
+                <h3>Person Detection</h3>
+                <p>YOLOv8n detects every individual in the scene in real time, counting density across the crowd zone.
+                </p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🌡️</div>
+                <h3>Density Heatmaps</h3>
+                <p>Gaussian blob kernel estimation overlays a heatmap highlighting dangerous crowd concentration zones.
+                </p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">💨</div>
+                <h3>Motion Analysis</h3>
+                <p>Dense optical flow tracks how chaotically the crowd is moving — a key stampede precursor signal.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🦴</div>
+                <h3>Pose & Fall Detection</h3>
+                <p>MediaPipe Pose identifies fallen individuals — critical indicators of an active stampede event.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">⚡</div>
+                <h3>Risk Scoring</h3>
+                <p>A weighted composite model fuses all signals into a single High / Medium / Low risk classification.
+                </p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📲</div>
+                <h3>Emergency Alerts</h3>
+                <p>On High risk: Twilio sends SMS + voice call to responders with GPS address and nearest police
+                    station.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- PIPELINE -->
+    <section class="section" style="padding-top:0">
+        <div class="section-tag">Detection Pipeline</div>
+        <h2 class="section-title">Six stages, one mission</h2>
+        <p class="section-sub">Each frame flows through every stage in under 33ms.</p>
+        <div class="pipeline">
+            <div class="pipe-step">
+                <div class="pipe-num">01</div>
+                <div class="pipe-icon">📹</div>
+                <h4>Video Input</h4>
+                <p>Live webcam or uploaded file via Flask endpoints</p>
+            </div>
+            <div class="pipe-step">
+                <div class="pipe-num">02</div>
+                <div class="pipe-icon">🔭</div>
+                <h4>YOLO Detection</h4>
+                <p>YOLOv8n extracts all person bounding boxes</p>
+            </div>
+            <div class="pipe-step">
+                <div class="pipe-num">03</div>
+                <div class="pipe-icon">🌡️</div>
+                <h4>Density Map</h4>
+                <p>Heatmap + density score from crowd distribution</p>
+            </div>
+            <div class="pipe-step">
+                <div class="pipe-num">04</div>
+                <div class="pipe-icon">💨</div>
+                <h4>Motion Score</h4>
+                <p>Optical flow chaos index from consecutive frames</p>
+            </div>
+            <div class="pipe-step">
+                <div class="pipe-num">05</div>
+                <div class="pipe-icon">🦴</div>
+                <h4>Pose Check</h4>
+                <p>MediaPipe fall detection on high-density zones</p>
+            </div>
+            <div class="pipe-step">
+                <div class="pipe-num">06</div>
+                <div class="pipe-icon">🚨</div>
+                <h4>Alert &amp; Display</h4>
+                <p>Risk overlay on video + Twilio SMS/call dispatch</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ALERT SECTION -->
+    <section class="section" style="padding-top:0">
+        <div class="alert-section">
+            <div>
+                <h3>🚨 Instant Emergency Response</h3>
+                <p>When High Risk is detected, the system immediately dispatches both an SMS message and a voice call
+                    via Twilio — with the exact GPS address and nearest police station name already included.</p>
+            </div>
+            <div class="alert-list">
+                <div class="alert-row">📍 GPS reverse-geocoded address via OpenStreetMap</div>
+                <div class="alert-row">🚔 Nearest police station via Overpass API</div>
+                <div class="alert-row">💬 Automated SMS with full context</div>
+                <div class="alert-row">📞 Automated voice call for urgent escalation</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="cta-section">
+        <div class="cta-box">
+            <h2>Ready to deploy crowd safety AI?</h2>
+            <p>The dashboard is live on Render. Connect a camera, upload a video, or integrate with your CCTV feed to
+                start monitoring immediately.</p>
+            <a class="btn-main" href="https://safe-muster.onrender.com" target="_blank" rel="noopener">Open Live
+                Dashboard →</a>
+        </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer>
+        <span>Safe Muster © 2024 — AI-Driven Stampede Detection &amp; Alert System</span>
+        <div style="display:flex;gap:1.5rem">
+            <a href="https://github.com/raj-moorthy/AI-driven-Stampede-Detection_and_AlertSystem" target="_blank"
+                rel="noopener">GitHub</a>
+            <a href="https://safe-muster.onrender.com" target="_blank" rel="noopener">Live App</a>
+        </div>
+    </footer>
+</body>
+
+</html>

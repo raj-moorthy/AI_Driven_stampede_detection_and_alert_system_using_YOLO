@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Safe Muster — Stampede Detection Dashboard</title>
+  <meta name="description" content="AI-powered real-time stampede detection and emergency alert system for crowd safety." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-primary:    #0a0e1a;
+      --bg-card:       #111827;
+      --bg-glass:      rgba(255,255,255,0.04);
+      --border:        rgba(255,255,255,0.08);
+      --accent-red:    #ef4444;
+      --accent-amber:  #f59e0b;
+      --accent-green:  #22c55e;
+      --accent-blue:   #3b82f6;
+      --accent-purple: #8b5cf6;
+      --text-primary:  #f1f5f9;
+      --text-muted:    #64748b;
+      --text-dim:      #94a3b8;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; font-family: 'Inter', sans-serif; background: var(--bg-primary); color: var(--text-primary); overflow-x: hidden; }
+
+    /* ---- TOPBAR ---- */
+    .topbar {
+      position: sticky; top: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 2rem; height: 64px;
+      background: rgba(10,14,26,0.85);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+    }
+    .topbar-brand { display: flex; align-items: center; gap: 0.75rem; }
+    .topbar-brand .logo { width: 36px; height: 36px; border-radius: 10px;
+      background: linear-gradient(135deg, #ef4444, #8b5cf6); display: grid; place-items: center; font-size: 1.1rem; }
+    .topbar-brand h1 { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.02em; }
+    .topbar-brand span { color: var(--accent-purple); }
+    .live-badge { display: flex; align-items: center; gap: 0.4rem; background: rgba(239,68,68,0.12);
+      border: 1px solid rgba(239,68,68,0.3); border-radius: 20px; padding: 0.3rem 0.8rem; font-size: 0.75rem; font-weight: 600; color: var(--accent-red); }
+    .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent-red); animation: pulse-dot 1.2s infinite; }
+    @keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1);} 50%{opacity:0.4;transform:scale(0.7);} }
+
+    /* ---- LAYOUT ---- */
+    .main { display: grid; grid-template-columns: 1fr 340px; gap: 1.5rem; padding: 1.5rem 2rem; min-height: calc(100vh - 64px); }
+    @media(max-width:900px){ .main{grid-template-columns:1fr;} }
+
+    /* ---- CARDS ---- */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.25rem;
+      transition: border-color .2s;
+    }
+    .card:hover { border-color: rgba(255,255,255,0.14); }
+    .card-title { font-size: 0.78rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 1rem; }
+
+    /* ---- VIDEO FEED ---- */
+    .video-wrapper { position: relative; border-radius: 12px; overflow: hidden; background: #000; aspect-ratio: 16/9; }
+    .video-wrapper img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .video-overlay-badge {
+      position: absolute; top: 12px; left: 12px;
+      background: rgba(0,0,0,0.65); backdrop-filter: blur(8px);
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 0.35rem 0.75rem; font-size: 0.75rem; font-weight: 600;
+      display: flex; align-items: center; gap: 0.4rem;
+    }
+
+    /* ---- RISK BANNER ---- */
+    .risk-banner {
+      margin-top: 1rem;
+      border-radius: 12px; padding: 1rem 1.25rem;
+      display: flex; align-items: center; justify-content: space-between;
+      transition: all 0.4s ease;
+    }
+    .risk-banner.high   { background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.35); }
+    .risk-banner.medium { background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.35); }
+    .risk-banner.low    { background: rgba(34,197,94,0.12);  border: 1px solid rgba(34,197,94,0.35); }
+    .risk-banner.unknown{ background: var(--bg-glass);        border: 1px solid var(--border); }
+    .risk-label { font-size: 0.85rem; color: var(--text-dim); }
+    .risk-value { font-size: 1.4rem; font-weight: 800; }
+    .risk-banner.high   .risk-value { color: var(--accent-red); }
+    .risk-banner.medium .risk-value { color: var(--accent-amber); }
+    .risk-banner.low    .risk-value { color: var(--accent-green); }
+    .risk-banner.unknown .risk-value { color: var(--text-dim); }
+    .risk-icon { font-size: 1.8rem; }
+
+    /* ---- CONTROLS ---- */
+    .controls { display: flex; gap: 0.75rem; margin-top: 1rem; flex-wrap: wrap; }
+    .btn {
+      flex: 1; min-width: 120px;
+      padding: 0.65rem 1rem; border-radius: 10px; border: 1px solid var(--border);
+      background: var(--bg-glass); color: var(--text-primary); font-size: 0.82rem; font-weight: 600;
+      cursor: pointer; transition: all .2s; display: flex; align-items: center; justify-content: center; gap: 0.4rem;
+    }
+    .btn:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.18); transform: translateY(-1px); }
+    .btn-primary { background: linear-gradient(135deg,#3b82f6,#8b5cf6); border-color: transparent; }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-danger { background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.35); color: var(--accent-red); }
+
+    /* ---- STAT CHIPS ---- */
+    .stats-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 0.75rem; }
+    .stat-chip {
+      background: var(--bg-glass); border: 1px solid var(--border); border-radius: 12px;
+      padding: 0.9rem 1rem; transition: border-color .2s;
+    }
+    .stat-chip:hover { border-color: rgba(255,255,255,0.14); }
+    .stat-chip .s-label { font-size: 0.7rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; }
+    .stat-chip .s-value { font-size: 1.25rem; font-weight: 700; margin-top: 0.25rem; }
+
+    /* ---- ALERT STATUS ---- */
+    .alert-status-card { border-radius: 12px; padding: 1.1rem 1.25rem; margin-bottom: 0.75rem;
+      display: flex; align-items: center; gap: 0.9rem; }
+    .alert-status-card.yes { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); }
+    .alert-status-card.no  { background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.25); }
+    .alert-icon { font-size: 1.6rem; }
+    .alert-status-card .a-title { font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
+    .alert-status-card .a-val { font-size: 1rem; font-weight: 700; margin-top: 2px; }
+    .alert-status-card.yes .a-val { color: var(--accent-red); }
+    .alert-status-card.no  .a-val { color: var(--accent-green); }
+
+    /* ---- LOCATION INFO ---- */
+    .location-row { display: flex; gap: 0.5rem; align-items: flex-start; margin-bottom: 0.6rem; }
+    .location-row .icon { font-size: 1rem; margin-top: 2px; flex-shrink: 0; }
+    .location-row .txt { font-size: 0.82rem; color: var(--text-dim); line-height: 1.45; }
+    .location-row .txt strong { color: var(--text-primary); font-weight: 600; display: block; margin-bottom: 1px; }
+
+    /* ---- UPLOAD FORM ---- */
+    .upload-form { display: flex; flex-direction: column; gap: 0.75rem; }
+    .file-input-label {
+      display: flex; align-items: center; justify-content: center; gap: 0.6rem;
+      border: 1px dashed rgba(255,255,255,0.15); border-radius: 10px;
+      padding: 1rem; cursor: pointer; font-size: 0.82rem; color: var(--text-dim);
+      transition: border-color .2s, background .2s;
+    }
+    .file-input-label:hover { border-color: var(--accent-blue); background: rgba(59,130,246,0.05); }
+    input[type="file"] { display: none; }
+
+    /* ---- SCROLLBAR ---- */
+    ::-webkit-scrollbar { width: 5px; } ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+  </style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<nav class="topbar">
+  <div class="topbar-brand">
+    <div class="logo">🛡️</div>
+    <h1>Safe<span>Muster</span></h1>
+  </div>
+  <div class="live-badge">
+    <span class="live-dot"></span> LIVE MONITORING
+  </div>
+</nav>
+
+<!-- MAIN GRID -->
+<div class="main">
+
+  <!-- LEFT COLUMN -->
+  <div>
+    <!-- Video Feed -->
+    <div class="card" style="margin-bottom:1.25rem;">
+      <div class="card-title">📹 Live Video Feed</div>
+      <div class="video-wrapper">
+        <img id="video-feed" src="{{ url_for('video_feed') }}" alt="Live Feed"
+          onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22640%22 height=%22360%22><rect fill=%22%23111827%22 width=%22640%22 height=%22360%22/><text x=%2250%%22 y=%2250%%22 fill=%22%2364748b%22 text-anchor=%22middle%22 dominant-baseline=%22middle%22 font-size=%2218%22 font-family=%22sans-serif%22>No video source active</text></svg>'">
+        <div class="video-overlay-badge">
+          <span style="width:7px;height:7px;background:#22c55e;border-radius:50%;display:inline-block;"></span>
+          AI Processing
+        </div>
+      </div>
+
+      {% set risk_lower = risk_level|lower %}
+      <div class="risk-banner {{ risk_lower }}">
+        <div>
+          <div class="risk-label">Current Risk Level</div>
+          <div class="risk-value">{{ risk_level }}</div>
+        </div>
+        <div class="risk-icon">
+          {% if risk_lower == 'high' %}🚨{% elif risk_lower == 'medium' %}⚠️{% elif risk_lower == 'low' %}✅{% else %}🔍{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="card" style="margin-bottom:1.25rem;">
+      <div class="card-title">📊 System Metrics</div>
+      <div class="stats-grid">
+        <div class="stat-chip">
+          <div class="s-label">Alert Status</div>
+          <div class="s-value" style="color:{{ 'var(--accent-red)' if alert_status == 'YES' else 'var(--accent-green)' }}">
+            {{ alert_status }}
+          </div>
+        </div>
+        <div class="stat-chip">
+          <div class="s-label">Risk Level</div>
+          <div class="s-value" style="color:{{ '#ef4444' if risk_level == 'High' else '#f59e0b' if risk_level == 'Medium' else '#22c55e' }}">
+            {{ risk_level | default('—') }}
+          </div>
+        </div>
+        <div class="stat-chip">
+          <div class="s-label">Location</div>
+          <div class="s-value" style="font-size:0.85rem;color:var(--text-dim)">{{ address | truncate(22, True) }}</div>
+        </div>
+        <div class="stat-chip">
+          <div class="s-label">Nearest Police</div>
+          <div class="s-value" style="font-size:0.78rem;color:var(--text-dim)">{{ police | truncate(22, True) }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Source Controls -->
+    <div class="card">
+      <div class="card-title">🎛️ Video Source</div>
+      <div class="controls">
+        <form action="/use_webcam" method="POST" style="flex:1">
+          <button class="btn btn-primary" type="submit" id="webcam-btn" style="width:100%">
+            📷 Use Webcam
+          </button>
+        </form>
+      </div>
+      <div style="margin-top:0.75rem;">
+        <form action="/upload_video" method="POST" enctype="multipart/form-data" class="upload-form">
+          <label class="file-input-label" for="video-file">
+            📁 Click to select a video file
+          </label>
+          <input type="file" id="video-file" name="video" accept="video/*" onchange="this.form.submit()" />
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT COLUMN -->
+  <div style="display:flex;flex-direction:column;gap:1rem;">
+
+    <!-- Alert Status -->
+    <div class="alert-status-card {{ 'yes' if alert_status == 'YES' else 'no' }}">
+      <div class="alert-icon">{{ '🚨' if alert_status == 'YES' else '🔔' }}</div>
+      <div>
+        <div class="a-title">Emergency Alert</div>
+        <div class="a-val">{{ 'TRIGGERED — SMS Sent' if alert_status == 'YES' else 'No Alert Active' }}</div>
+      </div>
+    </div>
+
+    <!-- Location -->
+    <div class="card">
+      <div class="card-title">📍 Location</div>
+      <div class="location-row">
+        <span class="icon">🏙️</span>
+        <div class="txt">
+          <strong>Address</strong>{{ address }}
+        </div>
+      </div>
+      <div class="location-row">
+        <span class="icon">🚔</span>
+        <div class="txt">
+          <strong>Nearest Police Station</strong>{{ police }}
+        </div>
+      </div>
+    </div>
+
+    <!-- How It Works -->
+    <div class="card">
+      <div class="card-title">🧠 Detection Pipeline</div>
+      <div style="display:flex;flex-direction:column;gap:0.6rem;">
+        {% for step in [
+          ('🔭', 'Person Detection', 'YOLOv8n real-time object detection'),
+          ('🌡️', 'Density Heatmap', 'Crowd density scoring via kernel estimation'),
+          ('💨', 'Motion Analysis', 'Optical flow-based motion scoring'),
+          ('🦴', 'Pose Estimation', 'MediaPipe fall & pose detection'),
+          ('⚡', 'Risk Scoring', 'Composite multi-factor risk calculator'),
+          ('📲', 'Alert Dispatch', 'Twilio SMS + Voice call on High Risk')
+        ] %}
+        <div style="display:flex;align-items:flex-start;gap:0.7rem;padding:0.6rem;border-radius:8px;background:var(--bg-glass);">
+          <span style="font-size:1rem;margin-top:1px;">{{ step[0] }}</span>
+          <div>
+            <div style="font-size:0.8rem;font-weight:600;color:var(--text-primary)">{{ step[1] }}</div>
+            <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">{{ step[2] }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Footer note -->
+    <div style="text-align:center;padding:0.5rem;font-size:0.72rem;color:var(--text-muted);">
+      Safe Muster © 2024 · AI-Driven Crowd Safety
+    </div>
+  </div>
+
+</div>
+
+<!-- Auto-refresh location -->
+<script>
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(function(pos) {
+      fetch('/location_update?lat=' + pos.coords.latitude + '&lon=' + pos.coords.longitude)
+        .catch(function(e){ console.warn('Location update failed:', e); });
+    });
+  }
+
+  // Auto-refresh page every 10s to update risk/alert status
+  setTimeout(function(){ location.reload(); }, 10000);
+</script>
+
+</body>
+</html>
